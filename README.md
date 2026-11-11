@@ -13,6 +13,8 @@ A cloud-hosted study application planned for generating and reviewing flashcards
 
 LLM inference, flashcards, authentication, persistence, and AWS deployment are not implemented.
 
+Project status notes for the team are in [PROJECT_STATUS.md](./PROJECT_STATUS.md).
+
 ## Planned features
 
 - Student sign-up and login
