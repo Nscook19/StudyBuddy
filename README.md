@@ -1,4 +1,4 @@
-# AI Flashcard Generator
+# StudyBuddy
 
 A cloud-hosted study application for generating and reviewing flashcards from a topic or pasted notes. Students will sign up, generate AI-powered question-and-answer cards, save their decks, and return later to study them.
 
