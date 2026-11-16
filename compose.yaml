@@ -1,9 +1,21 @@
-# Local development only; AWS deployment is a later milestone.
+# Milestone 2: React -> FastAPI -> private llama.cpp LLM.
 services:
   backend:
     build: ./backend
     ports:
       - "8080:8080"
+    environment:
+      LLM_URL: http://llm:8000
+      MODEL_NAME: qwen3-1.7b
+    depends_on:
+      llm:
+        condition: service_healthy
+    networks:
+      - appnet
+
+  llm:
+    build: ./llm
+    # No host ports: only the backend reaches the model over appnet.
     networks:
       - appnet
 

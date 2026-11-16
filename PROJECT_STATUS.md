@@ -1,29 +1,27 @@
 # Study Buddy — Project Status
 
-**Last updated:** November 11, 2026  
-**Current milestone:** 1 of 8 complete — application foundation  
-**Next milestone:** Connect the LLM from Assignment 2 to FastAPI
+**Last updated:** November 16, 2026
+**Current milestone:** 2 of 8 complete — private local LLM integration
+**Next milestone:** Generate and display question-and-answer flashcards
 
 ## Project summary
 
-Study Buddy is a cloud-hosted AI flashcard study app. The planned user flow is: sign up or log in, enter a study topic, generate question-and-answer cards, save a deck, and return later to study it. We are developing and testing locally before deploying on AWS.
+Study Buddy is a cloud-hosted AI flashcard study app. The planned user flow is: sign up or log in, enter a study topic, generate question-and-answer cards, save a deck, and return later to study it. Development and testing happen locally before any AWS deployment.
 
 ## What works now
 
-- React/Vite frontend runs locally on `http://localhost:5173`.
-- FastAPI backend runs locally on `http://localhost:8080` and responds to `GET /health` with `{"status":"ok"}`.
-- The frontend reaches the backend through the Vite `/api` proxy; `GET http://localhost:5173/api/health` returns `{"status":"ok"}`.
-- Docker Compose starts both services on a shared network.
-- Backend container runs as a non-root user (`uid=1000(appuser)` was verified).
-- Backend uses `uv`, `pyproject.toml`, and `uv.lock` for Python dependencies.
-- Backend tests and frontend build have passed; a GitHub Actions CI run was reported as passing.
-
-**Local verification:** On November 11, both health endpoints returned `ok` after initial startup. Requests made immediately after `docker compose up -d` initially failed because the services were not yet ready; retrying succeeded.
+- React/Vite frontend runs locally on `http://localhost:5173` and reports **Backend API: Connected**.
+- FastAPI backend runs locally on `http://localhost:8080`; `GET /health` returns `{"status":"ok"}`.
+- `POST /chat` proxies requests to Qwen3-1.7B Q4_K_M running through llama.cpp and returns its response and token usage.
+- `GET /usage/{user}` reports in-memory prompt-token, completion-token, and request counters.
+- Docker Compose runs the frontend, backend, and private model service on a shared network. The model's port 8000 is not published to the host.
+- Backend and LLM containers run as non-root users.
+- Backend tests use a mocked LLM, so CI does not need to download model weights.
+- Backend dependencies are managed by `uv` and `uv.lock`; frontend production build succeeds.
 
 ## Not implemented yet
 
-- Connecting to the LLM or generating flashcards
-- Flashcard UI, deck save/view/delete features
+- Flashcard generation or flashcard UI, deck save/view/delete features
 - Cognito sign-up/login and protected API routes
 - DynamoDB persistence
 - AWS deployment via Terraform (Terraform files are placeholders)
@@ -34,7 +32,7 @@ Study Buddy is a cloud-hosted AI flashcard study app. The planned user flow is: 
 | # | Milestone | Status |
 |---|---|---|
 | 1 | Bootable React + FastAPI foundation, Docker Compose, tests, CI | **Complete** |
-| 2 | Connect private LLM container to FastAPI; verify a real response | Next |
+| 2 | Connect private LLM container to FastAPI; verify a real response | **Complete** |
 | 3 | Generate and display question/answer flashcards | Not started |
 | 4 | Cognito sign-up/login and authenticated requests | Not started |
 | 5 | DynamoDB saved decks and per-user access | Not started |
@@ -55,15 +53,20 @@ docker compose up --build -d
 docker compose ps
 Invoke-RestMethod http://localhost:8080/health
 Invoke-RestMethod http://localhost:5173/api/health
+Invoke-RestMethod http://localhost:8080/chat -Method Post -ContentType 'application/json' -Body '{"user":"student","message":"Reply with hello."}'
+Invoke-RestMethod http://localhost:8080/usage/student
 ```
 
-Expected health responses: `status: ok` from both requests. Open `http://localhost:5173` and look for **Backend API: Connected**. It can take a few seconds after startup before endpoints become available.
+The first model image build downloads about 1.28 GB of model weights. Wait until the `llm` service is healthy. Open `http://localhost:5173` and look for **Backend API: Connected**.
 
-To verify the backend is non-root:
+To verify both containers run as non-root:
 
 ```powershell
 docker compose exec backend id
+docker compose exec llm id
 ```
+
+The model service has no published host port; only the backend reaches it over the Compose network. The usage counters are in memory and reset when the backend restarts. The unauthenticated `/chat` endpoint is for local testing only.
 
 To stop everything:
 
@@ -71,15 +74,6 @@ To stop everything:
 docker compose down
 ```
 
-## How we're implementing it
+## References
 
-- Use simple, explainable code; reuse patterns from our assignments and the professor's course examples where appropriate.
-- Keep React as the web UI and FastAPI as the API.
-- Reuse the Assignment 2 llama.cpp/Qwen + HTTP proxy pattern for the upcoming LLM integration; the model should not expose a host port.
-- Keep Terraform resources and production deployment work separate from the minimal local application until ready to integrate.
-- Add a small test for each new backend behavior; avoid premature abstractions.
-
-
-## Reference
-
-See the project proposal (RFC 0001) for planned architecture, AWS services, user flows, and scope. The planned AWS stack includes S3, CloudFront, Cognito, API Gateway, Application Load Balancer, ECS Fargate, ECR, DynamoDB, and CloudWatch.
+See [Milestone 2 setup and tests](docs/MILESTONE_2.md) for detailed local validation steps and the planned features and AWS architecture in this README.
