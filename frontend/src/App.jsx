@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { authConfigured, getAccessToken, getSignedInUser, signIn, signOutUser } from './auth'
 
 const COUNTS = [
   { value: 'auto', label: 'AI Recommended', detail: 'Automatically choose up to 20 flashcards' },
@@ -9,6 +10,9 @@ const COUNTS = [
 
 export default function App() {
   const [apiStatus, setApiStatus] = useState('Checking…')
+  const [authUser, setAuthUser] = useState(null)
+  const [authLoading, setAuthLoading] = useState(true)
+  const [authError, setAuthError] = useState('')
   const [mode, setMode] = useState('pdf')
   const [count, setCount] = useState('auto')
   const [topic, setTopic] = useState('')
@@ -32,12 +36,48 @@ export default function App() {
       .catch(() => setApiStatus('Unavailable'))
   }, [])
 
+  useEffect(() => {
+    let active = true
+    getSignedInUser()
+      .then((user) => {
+        if (active) setAuthUser(user)
+      })
+      .catch(() => {
+        if (active) setAuthError('Could not restore your sign-in. Please sign in again.')
+      })
+      .finally(() => {
+        if (active) setAuthLoading(false)
+      })
+    return () => { active = false }
+  }, [])
+
+  async function handleSignIn() {
+    setAuthError('')
+    try {
+      await signIn()
+    } catch (err) {
+      setAuthError(err.message || 'Could not open Cognito sign-in.')
+    }
+  }
+
+  async function handleSignOut() {
+    setAuthError('')
+    try {
+      await signOutUser()
+      setAuthUser(null)
+      setDeck(null)
+    } catch (err) {
+      setAuthError(err.message || 'Could not sign out.')
+    }
+  }
+
   async function generate(event) {
     event.preventDefault()
     setError('')
     if (mode === 'pdf' && !pdf) return setError('Choose a lecture PDF first.')
     if (mode === 'topic' && topic.trim().length < 12) return setError('Enter a more specific topic.')
     if (mode === 'notes' && notes.trim().length < 12) return setError('Paste a little more study material.')
+    if (!authUser) return setError('Sign in before generating flashcards.')
 
     const data = new FormData()
     data.append('mode', mode)
@@ -48,7 +88,13 @@ export default function App() {
 
     setBusy(true)
     try {
-      const response = await fetch('/api/generate', { method: 'POST', body: data })
+      const accessToken = await getAccessToken()
+      if (!accessToken) throw new Error('Your sign-in expired. Please sign in again.')
+      const response = await fetch('/api/generate', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${accessToken}` },
+        body: data,
+      })
       const result = await response.json()
       if (!response.ok) throw new Error(result.detail || 'Could not generate cards. Please try again.')
       setDeck(result)
@@ -82,6 +128,19 @@ export default function App() {
       <header className="topbar">
         <div className="brand"><span className="brand-icon">✦</span><span>study<span className="brand-accent">buddy</span></span></div>
         <span className="header-note">Your smarter study space</span>
+        <div className="account-controls">
+          {authLoading ? <span className="account-name">Checking sign-in…</span> : authUser ? (
+            <>
+              <span className="account-name">Signed in as {authUser.email || authUser.userId}</span>
+              <button type="button" className="auth-button" onClick={handleSignOut}>Sign out</button>
+            </>
+          ) : authConfigured ? (
+            <button type="button" className="auth-button" onClick={handleSignIn}>Sign in / Sign up</button>
+          ) : (
+            <span className="auth-warning">Set up Cognito in .env to sign in</span>
+          )}
+          {authError && <span role="alert" className="auth-error">{authError}</span>}
+        </div>
         <span className={`connection ${apiStatus === 'Connected' ? 'online' : ''}`}><span className="status-dot" /> API {apiStatus}</span>
       </header>
 
@@ -135,7 +194,7 @@ export default function App() {
             </div>
             {error && <div role="alert" className="error">{error}</div>}
             <button className="primary-action" disabled={busy} type="submit">{busy ? 'Creating your flashcards…' : '✦ Generate flashcards'} <span aria-hidden="true">→</span></button>
-            <p className="privacy-note">{busy ? 'Qwen is generating your cards locally. This can take a few minutes.' : 'Powered by a locally hosted AI model · No account needed yet'}</p>
+            <p className="privacy-note">{busy ? 'Qwen is generating your cards locally. This can take a few minutes.' : authUser ? 'Powered by a locally hosted AI model.' : 'Sign in with Cognito to generate flashcards.'}</p>
           </form>
           <footer className="footer-copy">Made for better study sessions. One card at a time.</footer>
         </main>

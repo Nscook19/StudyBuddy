@@ -5,14 +5,19 @@ import json
 import os
 import socket
 from collections import defaultdict
+from functools import lru_cache
 
 import httpx
-from fastapi import FastAPI, File, Form, HTTPException, UploadFile
+import jwt
+from fastapi import Depends, FastAPI, File, Form, Header, HTTPException, UploadFile
+from jwt.exceptions import PyJWKClientConnectionError, PyJWKClientError, PyJWTError
 from pydantic import BaseModel
 from pypdf import PdfReader
 
 LLM_URL = os.environ.get("LLM_URL", "http://llm:8000")
 MODEL_NAME = os.environ.get("MODEL_NAME", "qwen3-1.7b")
+COGNITO_ISSUER = os.environ.get("COGNITO_ISSUER", "").rstrip("/")
+COGNITO_CLIENT_ID = os.environ.get("COGNITO_CLIENT_ID", "")
 
 app = FastAPI(title="Study Buddy API")
 
@@ -23,6 +28,7 @@ USAGE: dict[str, dict[str, int]] = defaultdict(
 
 
 class ChatRequest(BaseModel):
+    # Kept for compatibility; usage attribution comes from the verified token.
     user: str = "student"
     message: str
 
@@ -41,13 +47,85 @@ def health() -> dict:
     return {"status": "ok"}
 
 
+@lru_cache(maxsize=4)
+def get_jwks_client(issuer: str) -> jwt.PyJWKClient:
+    return jwt.PyJWKClient(f"{issuer}/.well-known/jwks.json", cache_keys=True)
+
+
+def get_jwks_signing_key(token: str):
+    return get_jwks_client(COGNITO_ISSUER).get_signing_key_from_jwt(token).key
+
+
+def get_current_user(authorization: str | None = Header(default=None)) -> str:
+    if not COGNITO_ISSUER or not COGNITO_CLIENT_ID:
+        raise HTTPException(status_code=503, detail="Authentication is not configured.")
+    if not authorization:
+        raise HTTPException(
+            status_code=401,
+            detail="A Cognito access token is required.",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    scheme, separator, token = authorization.partition(" ")
+    if not separator or scheme.casefold() != "bearer" or not token.strip():
+        raise HTTPException(
+            status_code=401,
+            detail="A Cognito access token is required.",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    token = token.strip()
+
+    try:
+        signing_key = get_jwks_signing_key(token)
+    except PyJWKClientConnectionError as err:
+        raise HTTPException(status_code=503, detail="Could not reach Cognito to verify the token.") from err
+    except (PyJWKClientError, PyJWTError) as err:
+        raise HTTPException(
+            status_code=401,
+            detail="Invalid access token.",
+            headers={"WWW-Authenticate": "Bearer"},
+        ) from err
+
+    try:
+        claims = jwt.decode(
+            token,
+            signing_key,
+            algorithms=["RS256"],
+            issuer=COGNITO_ISSUER,
+            options={"require": ["exp", "iss", "sub", "token_use", "client_id"]},
+        )
+    except PyJWTError as err:
+        raise HTTPException(
+            status_code=401,
+            detail="Invalid access token.",
+            headers={"WWW-Authenticate": "Bearer"},
+        ) from err
+
+    if claims["token_use"] != "access" or claims["client_id"] != COGNITO_CLIENT_ID:
+        raise HTTPException(
+            status_code=401,
+            detail="Invalid access token.",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    subject = claims["sub"]
+    if not isinstance(subject, str) or not subject:
+        raise HTTPException(
+            status_code=401,
+            detail="Invalid access token.",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    return subject
+
+
 @app.get("/usage/{user}")
-def usage(user: str) -> dict:
-    return {"user": user, **USAGE[user]}
+def usage(user: str, current_user: str = Depends(get_current_user)) -> dict:
+    if user != current_user:
+        raise HTTPException(status_code=403, detail="You can only view your own usage.")
+    return {"user": current_user, **USAGE[current_user]}
 
 
 @app.post("/chat")
-def chat(req: ChatRequest) -> dict:
+def chat(req: ChatRequest, current_user: str = Depends(get_current_user)) -> dict:
     try:
         resp = httpx.post(
             f"{LLM_URL}/v1/chat/completions",
@@ -70,7 +148,7 @@ def chat(req: ChatRequest) -> dict:
     except (ValueError, KeyError, IndexError, TypeError) as err:
         raise HTTPException(status_code=502, detail="invalid model response") from err
 
-    counters = USAGE[req.user]
+    counters = USAGE[current_user]
     counters["prompt_tokens"] += prompt_tokens
     counters["completion_tokens"] += completion_tokens
     counters["request_count"] += 1
@@ -185,6 +263,7 @@ async def generate(
     topic: str = Form(""),
     notes: str = Form(""),
     file: UploadFile | None = File(None),
+    current_user: str = Depends(get_current_user),
 ) -> dict:
     if count != "auto" and count not in {str(value) for value in CARD_COUNTS}:
         raise HTTPException(status_code=422, detail="Choose AI Recommended, 5, 10, or 20 cards.")

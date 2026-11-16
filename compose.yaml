@@ -7,6 +7,8 @@ services:
     environment:
       LLM_URL: http://llm:8000
       MODEL_NAME: qwen3-1.7b
+      COGNITO_ISSUER: ${COGNITO_ISSUER:-}
+      COGNITO_CLIENT_ID: ${COGNITO_CLIENT_ID:-}
     depends_on:
       llm:
         condition: service_healthy
@@ -28,6 +30,11 @@ services:
     command: sh -c "npm install && npm run dev"
     environment:
       API_PROXY_TARGET: http://backend:8080
+      VITE_COGNITO_USER_POOL_ID: ${VITE_COGNITO_USER_POOL_ID:-}
+      VITE_COGNITO_CLIENT_ID: ${VITE_COGNITO_CLIENT_ID:-}
+      VITE_COGNITO_DOMAIN: ${VITE_COGNITO_DOMAIN:-}
+      VITE_COGNITO_CALLBACK_URL: ${VITE_COGNITO_CALLBACK_URL:-http://localhost:5173/}
+      VITE_COGNITO_LOGOUT_URL: ${VITE_COGNITO_LOGOUT_URL:-http://localhost:5173/}
     ports:
       - "5173:5173"
     depends_on:

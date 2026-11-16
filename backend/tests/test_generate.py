@@ -5,12 +5,20 @@ import json
 import re
 
 import httpx
+import pytest
 from fastapi.testclient import TestClient
 from pypdf import PdfWriter
 
 from app import main
 
 client = TestClient(main.app)
+
+
+@pytest.fixture(autouse=True)
+def authenticated_user():
+    main.app.dependency_overrides[main.get_current_user] = lambda: "test-user"
+    yield
+    main.app.dependency_overrides.pop(main.get_current_user, None)
 
 
 def card_array(count):
