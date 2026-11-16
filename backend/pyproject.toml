@@ -1,11 +1,13 @@
 [project]
 name = "study-buddy-backend"
 version = "0.1.0"
-description = "Study Buddy FastAPI proxy and foundation"
+description = "Study Buddy flashcard API"
 requires-python = ">=3.14"
 dependencies = [
     "fastapi>=0.115,<1",
     "httpx>=0.27,<1",
+    "pypdf>=5,<7",
+    "python-multipart>=0.0.9,<1",
     "uvicorn>=0.30,<1",
 ]
 

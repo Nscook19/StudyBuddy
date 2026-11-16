@@ -16,4 +16,4 @@ HEALTHCHECK --interval=10s --timeout=5s --retries=10 --start-period=100s \
     CMD curl -f http://localhost:8000/health || exit 1
 
 # Base image already uses llama-server as its entrypoint.
-CMD ["-m", "/models/model.gguf", "--host", "0.0.0.0", "--port", "8000", "--reasoning", "off"]
+CMD ["-m", "/models/model.gguf", "--host", "0.0.0.0", "--port", "8000", "--reasoning", "off", "--ctx-size", "8192"]
