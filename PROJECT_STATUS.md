@@ -15,6 +15,15 @@
 | 7 | Image publishing and monitoring | Not started |
 | 8 | End-to-end validation and final demo | Not started |
 
+| # | Demo Structure | Assigned |
+|---|---|---|
+| 1 | Problem Statement | Nate |
+| 2 | Live Demo | Nate |
+| 3 | Authentication & Persistence | Nate |
+| 4 | Architecture Walkthrough | Ilya |
+| 5 | Infrastructure & Automation | Ilya |
+| 6 | Challenges & Learnings | Ilya |
+
 Milestone 3 includes a React create/study interface; generation from topics, notes, and text-based PDFs; AI-recommended or fixed 5/10/20-card counts; and review controls with session progress. The 19 backend tests, frontend production build, Compose configuration, and live topic and Week 5 PDF generation checks passed. Cards are temporary until persistence is implemented, and generated facts should be reviewed against the source material.
 
 Milestone 4 adds Cognito-hosted sign-up/sign-in with authorization code and PKCE, browser sign-out, access-token requests, and FastAPI JWT validation. Terraform defines the Cognito user pool, public app client, and hosted login domain. The project owner verified real Cognito signup, login, logout, and authenticated flashcard generation end to end. Saved decks and cross-session persistence remain Milestone 5.
