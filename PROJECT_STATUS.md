@@ -11,7 +11,7 @@
 | 3 | Generate and study flashcards from topics, notes, and PDFs | Complete |
 | 4 | Cognito sign-up/login and authenticated requests | Complete |
 | 5 | DynamoDB persistence and per-user decks | Not started |
-| 6 | AWS deployment using Terraform | Not started |
+| 6 | AWS deployment using Terraform, create architecture diagram and put it in README | Not started |
 | 7 | Image publishing and monitoring | Not started |
 | 8 | End-to-end validation and final demo | Not started |
 
